@@ -7,3 +7,5 @@ __pycache__/
 *.duckdb.wal
 .user.yml
 dbt_internal_packages/
+CLAUDE.md
+LEARNING.md
