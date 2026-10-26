@@ -1,0 +1,24 @@
+version: 2
+
+models:
+  - name: int_receipt_items
+    description: Host and guest line items on one grain (a line on one diner's receipt at one episode).
+    data_tests:
+      - unique:
+          column_name: "spot_id || '|' || diner_role || '|' || guest_number || '|' || line_number"
+    columns:
+      - name: diner_role
+        data_tests:
+          - accepted_values: {arguments: {values: [host, guest]}}
+      - name: item_price_usd
+        data_tests: [not_null]
+
+  - name: int_receipts
+    description: One row per receipt with item count, subtotal, tax and total.
+    data_tests:
+      - unique:
+          column_name: "spot_id || '|' || diner_role || '|' || guest_number"
+    columns:
+      - name: total_usd
+        description: subtotal_usd + tax_usd.
+        data_tests: [not_null]

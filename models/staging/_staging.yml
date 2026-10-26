@@ -1,0 +1,137 @@
+version: 2
+
+models:
+  - name: stg_lunch__spots
+    description: One row per restaurant with the scalar metadata fields unpacked and typed.
+    columns:
+      - name: spot_id
+        data_tests: [not_null, unique]
+      - name: place_id
+        data_tests: [not_null, unique]
+      - name: restaurant_name
+        data_tests: [not_null]
+      - name: price_label_usd
+        description: price_label parsed to a decimal. Null when the label does not parse.
+        data_tests:
+          - not_null
+          - within_range:
+              arguments: {min_value: 0, max_value: 50}
+      - name: latitude
+        data_tests:
+          - within_range: {arguments: {min_value: 33.5, max_value: 37.5}}
+      - name: longitude
+        data_tests:
+          - within_range: {arguments: {min_value: -103.5, max_value: -94.0}}
+      - name: city
+        description: Parsed from the formatted address. Null when the address does not match "street, City, ST 99999".
+      - name: state_code
+        description: Two-letter state parsed from the address.
+      - name: featured_date
+        description: Date the episode aired.
+        data_tests: [not_null, unique]
+      - name: youtube_video_id
+        description: 11-character YouTube id when the video URL is a YouTube watch link, else null.
+      - name: host_tax_usd
+        data_tests: [not_null]
+      - name: host_item_count
+        data_tests: [not_null]
+
+  - name: stg_lunch__host_order_items
+    description: One row per line item on the host's receipt.
+    data_tests:
+      - unique:
+          column_name: "spot_id || '|' || line_number"
+    columns:
+      - name: spot_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_lunch__spots'), field: spot_id}}
+      - name: line_number
+        data_tests: [not_null]
+      - name: item_name
+        data_tests: [not_null]
+      - name: item_price_usd
+        data_tests:
+          - not_null
+          - within_range: {arguments: {min_value: 0, max_value: 50}}
+
+  - name: stg_lunch__guest_orders
+    description: One row per guest receipt.
+    columns:
+      - name: spot_id
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('stg_lunch__spots'), field: spot_id}}
+      - name: guest_name
+        data_tests: [not_null]
+
+  - name: stg_lunch__guest_order_items
+    description: One row per line item on a guest's receipt.
+    columns:
+      - name: spot_id
+        data_tests: [not_null]
+      - name: item_name
+        data_tests: [not_null]
+      - name: item_price_usd
+        data_tests: [not_null]
+
+  - name: stg_lunch__specials
+    description: One row per advertised special.
+    columns:
+      - name: day_group
+        description: Normalized day bucket derived from the free-text day.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [daily, weekdays, weekends, mon, tue, wed, thu, fri, sat, sun, other]
+      - name: price_usd
+        data_tests: [not_null]
+
+unit_tests:
+  - name: stg_spots_parses_label_address_and_video
+    description: Price label, city/state/zip and YouTube id parse from a typical record, and odd records degrade to nulls instead of errors.
+    model: stg_lunch__spots
+    given:
+      - input: ref('raw_spots')
+        rows:
+          - id: a
+            place_id: p1
+            name: Typical
+            price_label: "$11"
+            lat: 36.1
+            lng: -95.9
+            metadata: '{"address":"124 S Broadway, Coweta, OK 74429, USA","featured_date":"2025-09-05","video_url":"https://www.youtube.com/watch?v=Sm3O6JlSIcc","tax":0.6,"ron_order":[{"item_name":"Burger","ron_mods":"","item_price":10}],"restaurant_specials":[]}'
+            extracted_at: 2026-10-26
+          - id: b
+            place_id: p2
+            name: Odd
+            price_label: "$0"
+            lat: 36.1
+            lng: -95.9
+            metadata: '{"address":"Somewhere unusual","featured_date":"2025-09-12","video_url":"https://www.example.com/story.html","tax":0,"ron_order":[],"restaurant_specials":[]}'
+            extracted_at: 2026-10-26
+    expect:
+      rows:
+        - {spot_id: a, price_label_usd: 11, city: Coweta, state_code: OK, postal_code: "74429", youtube_video_id: Sm3O6JlSIcc, featured_date: 2025-09-05, host_tax_usd: 0.6, host_item_count: 1}
+        - {spot_id: b, price_label_usd: 0, city: null, state_code: null, postal_code: null, youtube_video_id: null, featured_date: 2025-09-12, host_tax_usd: 0, host_item_count: 0}
+
+  - name: specials_day_text_normalizes
+    model: stg_lunch__specials
+    given:
+      - input: ref('raw_spots')
+        rows:
+          - id: a
+            place_id: p1
+            name: X
+            price_label: "$9"
+            lat: 36.1
+            lng: -95.9
+            metadata: '{"restaurant_specials":[{"day":"Daily","description":"Lunch","price":8},{"day":"Tuesday","description":"Tacos","price":6.5},{"day":"Mon-Fri","description":"Combo","price":9},{"day":"Veterans Day","description":"Free meal","price":0}]}'
+            extracted_at: 2026-10-26
+    expect:
+      rows:
+        - {spot_id: a, special_number: 1, day_raw: Daily, day_group: daily, price_usd: 8}
+        - {spot_id: a, special_number: 2, day_raw: Tuesday, day_group: tue, price_usd: 6.5}
+        - {spot_id: a, special_number: 3, day_raw: Mon-Fri, day_group: weekdays, price_usd: 9}
+        - {spot_id: a, special_number: 4, day_raw: Veterans Day, day_group: other, price_usd: 0}

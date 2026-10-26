@@ -1,0 +1,21 @@
+name: dbt build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NO_COLOR: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Install dbt
+        run: uv sync
+      - name: Build and test
+        run: uv run dbt build
+      - name: Generate docs
+        run: uv run dbt docs generate

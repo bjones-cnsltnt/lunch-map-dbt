@@ -1,0 +1,39 @@
+name: lunch_map
+version: "1.0.0"
+profile: lunch_map
+require-dbt-version: ">=1.8.0,<3.0.0"
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+seeds:
+  lunch_map:
+    raw_spots:
+      +column_types:
+        id: varchar
+        place_id: varchar
+        name: varchar
+        price_label: varchar
+        lat: double
+        lng: double
+        metadata: varchar
+        extracted_at: date
+
+models:
+  lunch_map:
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: marts
+    audit:
+      +materialized: table
+      +schema: audit

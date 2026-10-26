@@ -1,0 +1,27 @@
+version: 2
+
+models:
+  - name: audit_receipt_reconciliation
+    description: >
+      Reconciles the displayed price label against the receipt rebuilt from line items plus tax,
+      one row per episode. 'mismatch' fails the build (tests/assert_receipts_reconcile_to_price_label.sql).
+    columns:
+      - name: episode_key
+        data_tests: [not_null, unique]
+      - name: reconciliation_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [match, match_rounded, mismatch, unparsed_label, no_line_items]
+
+  - name: audit_record_quality
+    description: Worklist of source records needing attention, one row per (restaurant, issue). Surfaced as a warning, never a failure.
+    columns:
+      - name: issue_key
+        data_tests: [not_null, unique]
+      - name: issue
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [missing_cuisine, address_not_parsed, state_not_ok, video_not_youtube, zero_price_label, no_host_items]

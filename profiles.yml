@@ -1,0 +1,9 @@
+# Local DuckDB target. `dbt build` creates target/lunch_map.duckdb; nothing else is needed.
+lunch_map:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "target/lunch_map.duckdb"
+      schema: main
+      threads: 4

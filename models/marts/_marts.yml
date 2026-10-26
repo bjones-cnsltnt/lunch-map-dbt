@@ -1,0 +1,108 @@
+version: 2
+
+models:
+  - name: dim_restaurant
+    description: Restaurant dimension. One row per Google Place ID.
+    columns:
+      - name: restaurant_key
+        description: Surrogate key, md5(place_id).
+        data_tests: [not_null, unique]
+      - name: place_id
+        data_tests: [not_null, unique]
+      - name: restaurant_name
+        data_tests: [not_null]
+      - name: cuisine_group
+        description: Free-text cuisine collapsed to a reportable set. 'Unknown' when the source has none.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [American, BBQ, Mexican, Pizza, Burger, Asian, "Sandwich & Deli", Mediterranean, Other, Unknown]
+      - name: drive_time_bucket
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [under 15 min, 15-29 min, 30-44 min, 45+ min, unknown]
+
+  - name: dim_diner
+    description: Who ate. The host on every episode plus each named guest.
+    columns:
+      - name: diner_key
+        data_tests: [not_null, unique]
+      - name: diner_role
+        data_tests:
+          - accepted_values: {arguments: {values: [host, guest]}}
+      - name: diner_name
+        data_tests: [not_null]
+
+  - name: dim_date
+    description: Calendar covering the full years spanned by featured dates.
+    columns:
+      - name: date_key
+        description: yyyymmdd integer.
+        data_tests: [not_null, unique]
+      - name: date_day
+        data_tests: [not_null, unique]
+      - name: day_of_week
+        description: ISO day of week, 1 = Monday.
+        data_tests:
+          - within_range: {arguments: {min_value: 1, max_value: 7}}
+
+  - name: fct_episode
+    description: Episode fact. Grain is one restaurant featured on one date. Measures are the host's receipt.
+    columns:
+      - name: episode_key
+        data_tests: [not_null, unique]
+      - name: restaurant_key
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_restaurant'), field: restaurant_key}}
+      - name: date_key
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_date'), field: date_key}}
+      - name: featured_date
+        data_tests: [not_null, unique]
+      - name: price_label_usd
+        data_tests: [not_null]
+      - name: host_total_usd
+        description: host_subtotal_usd + host_tax_usd, rebuilt from line items.
+        data_tests: [not_null]
+      - name: guest_count
+        data_tests:
+          - within_range: {arguments: {min_value: 0, max_value: 5}}
+
+  - name: fct_receipt_line
+    description: Receipt line fact. Grain is one line item on one diner's receipt at one episode.
+    columns:
+      - name: receipt_line_key
+        data_tests: [not_null, unique]
+      - name: episode_key
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('fct_episode'), field: episode_key}}
+      - name: restaurant_key
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_restaurant'), field: restaurant_key}}
+      - name: diner_key
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_diner'), field: diner_key}}
+      - name: date_key
+        data_tests:
+          - relationships: {arguments: {to: ref('dim_date'), field: date_key}}
+      - name: item_price_usd
+        data_tests: [not_null]
+
+  - name: fct_restaurant_special
+    description: Advertised specials. Grain is one special at one restaurant.
+    columns:
+      - name: special_key
+        data_tests: [not_null, unique]
+      - name: restaurant_key
+        data_tests:
+          - not_null
+          - relationships: {arguments: {to: ref('dim_restaurant'), field: restaurant_key}}
+      - name: day_group
+        data_tests: [not_null]

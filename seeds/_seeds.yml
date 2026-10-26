@@ -1,0 +1,32 @@
+version: 2
+
+seeds:
+  - name: raw_spots
+    description: >
+      Snapshot of the public restaurant feed served by the Tulsa Lunch Map app
+      (https://lunch.jonesgroup.dev/api/spots), one row per restaurant, exactly as stored.
+      Regenerate with `python scripts/extract_spots.py`. The nested `metadata` object is kept
+      as a JSON string so every parsing decision lives in versioned, tested SQL.
+    columns:
+      - name: id
+        description: App-side UUID for the record.
+        data_tests: [not_null, unique]
+      - name: place_id
+        description: Google Place ID. The natural key for a restaurant.
+        data_tests: [not_null, unique]
+      - name: name
+        description: Restaurant name as shown in the app.
+        data_tests: [not_null]
+      - name: price_label
+        description: What the host paid, as displayed ("$11").
+        data_tests: [not_null]
+      - name: lat
+        data_tests: [not_null]
+      - name: lng
+        data_tests: [not_null]
+      - name: metadata
+        description: JSON string. Address, cuisine, featured date, video URL, tax, drive time, receipt line items, guest receipts, specials.
+        data_tests: [not_null]
+      - name: extracted_at
+        description: Date the snapshot was pulled.
+        data_tests: [not_null]
